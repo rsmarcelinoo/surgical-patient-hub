@@ -16,33 +16,42 @@ export type Database = {
     Tables: {
       attachments: {
         Row: {
+          attachment_type: string
           description: string | null
           episode_id: string | null
           file_name: string
           file_type: string | null
           file_url: string
           id: string
+          mime_type: string | null
           patient_id: string
+          surgery_id: string | null
           uploaded_at: string
         }
         Insert: {
+          attachment_type?: string
           description?: string | null
           episode_id?: string | null
           file_name: string
           file_type?: string | null
           file_url: string
           id?: string
+          mime_type?: string | null
           patient_id: string
+          surgery_id?: string | null
           uploaded_at?: string
         }
         Update: {
+          attachment_type?: string
           description?: string | null
           episode_id?: string | null
           file_name?: string
           file_type?: string | null
           file_url?: string
           id?: string
+          mime_type?: string | null
           patient_id?: string
+          surgery_id?: string | null
           uploaded_at?: string
         }
         Relationships: [
@@ -60,44 +69,121 @@ export type Database = {
             referencedRelation: "patients"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "attachments_surgery_id_fkey"
+            columns: ["surgery_id"]
+            isOneToOne: false
+            referencedRelation: "surgeries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comments: {
+        Row: {
+          author: string | null
+          created_at: string
+          episode_id: string | null
+          id: string
+          is_pinned: boolean
+          mentions: string[] | null
+          patient_id: string | null
+          surgery_id: string | null
+          text: string
+          updated_at: string
+        }
+        Insert: {
+          author?: string | null
+          created_at?: string
+          episode_id?: string | null
+          id?: string
+          is_pinned?: boolean
+          mentions?: string[] | null
+          patient_id?: string | null
+          surgery_id?: string | null
+          text: string
+          updated_at?: string
+        }
+        Update: {
+          author?: string | null
+          created_at?: string
+          episode_id?: string | null
+          id?: string
+          is_pinned?: boolean
+          mentions?: string[] | null
+          patient_id?: string | null
+          surgery_id?: string | null
+          text?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "episodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_surgery_id_fkey"
+            columns: ["surgery_id"]
+            isOneToOne: false
+            referencedRelation: "surgeries"
+            referencedColumns: ["id"]
+          },
         ]
       }
       consultations: {
         Row: {
           consultation_date: string
+          consultation_type: string
           created_at: string
           diagnosis: string | null
           episode_id: string | null
           follow_up_date: string | null
           id: string
+          location: string | null
           notes: string | null
           patient_id: string
+          surgery_id: string | null
           treatment_plan: string | null
           type: string
           updated_at: string
         }
         Insert: {
           consultation_date?: string
+          consultation_type?: string
           created_at?: string
           diagnosis?: string | null
           episode_id?: string | null
           follow_up_date?: string | null
           id?: string
+          location?: string | null
           notes?: string | null
           patient_id: string
+          surgery_id?: string | null
           treatment_plan?: string | null
           type?: string
           updated_at?: string
         }
         Update: {
           consultation_date?: string
+          consultation_type?: string
           created_at?: string
           diagnosis?: string | null
           episode_id?: string | null
           follow_up_date?: string | null
           id?: string
+          location?: string | null
           notes?: string | null
           patient_id?: string
+          surgery_id?: string | null
           treatment_plan?: string | null
           type?: string
           updated_at?: string
@@ -117,6 +203,13 @@ export type Database = {
             referencedRelation: "patients"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "consultations_surgery_id_fkey"
+            columns: ["surgery_id"]
+            isOneToOne: false
+            referencedRelation: "surgeries"
+            referencedColumns: ["id"]
+          },
         ]
       }
       episodes: {
@@ -124,9 +217,13 @@ export type Database = {
           created_at: string
           description: string | null
           end_date: string | null
+          end_date_new: string | null
+          episode_type: string
+          hospital_id: string | null
           id: string
           patient_id: string
           start_date: string
+          start_date_new: string | null
           status: string
           title: string
           updated_at: string
@@ -135,9 +232,13 @@ export type Database = {
           created_at?: string
           description?: string | null
           end_date?: string | null
+          end_date_new?: string | null
+          episode_type?: string
+          hospital_id?: string | null
           id?: string
           patient_id: string
           start_date?: string
+          start_date_new?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -146,14 +247,25 @@ export type Database = {
           created_at?: string
           description?: string | null
           end_date?: string | null
+          end_date_new?: string | null
+          episode_type?: string
+          hospital_id?: string | null
           id?: string
           patient_id?: string
           start_date?: string
+          start_date_new?: string | null
           status?: string
           title?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "episodes_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "episodes_patient_id_fkey"
             columns: ["patient_id"]
@@ -163,32 +275,73 @@ export type Database = {
           },
         ]
       }
-      kanban_boards: {
+      hospitals: {
         Row: {
+          code: string | null
           created_at: string
-          description: string | null
-          hospital: string | null
           id: string
           name: string
           updated_at: string
         }
         Insert: {
+          code?: string | null
           created_at?: string
-          description?: string | null
-          hospital?: string | null
           id?: string
           name: string
           updated_at?: string
         }
         Update: {
+          code?: string | null
           created_at?: string
-          description?: string | null
-          hospital?: string | null
           id?: string
           name?: string
           updated_at?: string
         }
         Relationships: []
+      }
+      kanban_boards: {
+        Row: {
+          columns_config: Json
+          created_at: string
+          description: string | null
+          hospital: string | null
+          hospital_id: string | null
+          id: string
+          name: string
+          service: string | null
+          updated_at: string
+        }
+        Insert: {
+          columns_config?: Json
+          created_at?: string
+          description?: string | null
+          hospital?: string | null
+          hospital_id?: string | null
+          id?: string
+          name: string
+          service?: string | null
+          updated_at?: string
+        }
+        Update: {
+          columns_config?: Json
+          created_at?: string
+          description?: string | null
+          hospital?: string | null
+          hospital_id?: string | null
+          id?: string
+          name?: string
+          service?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kanban_boards_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       kanban_cards: {
         Row: {
@@ -199,6 +352,9 @@ export type Database = {
           notes: string | null
           patient_id: string
           position: number
+          priority: string | null
+          scheduled_date: string | null
+          surgery_type: string | null
           updated_at: string
         }
         Insert: {
@@ -209,6 +365,9 @@ export type Database = {
           notes?: string | null
           patient_id: string
           position?: number
+          priority?: string | null
+          scheduled_date?: string | null
+          surgery_type?: string | null
           updated_at?: string
         }
         Update: {
@@ -219,6 +378,9 @@ export type Database = {
           notes?: string | null
           patient_id?: string
           position?: number
+          priority?: string | null
+          scheduled_date?: string | null
+          surgery_type?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -282,44 +444,59 @@ export type Database = {
       }
       surgeries: {
         Row: {
+          assistants: string[] | null
           created_at: string
+          drawings: string[] | null
           duration_minutes: number | null
           episode_id: string | null
+          extra_fields: Json | null
           id: string
+          main_surgeon: string | null
           notes: string | null
           operating_room: string | null
           patient_id: string
           procedure_name: string
           scheduled_date: string | null
           status: string
+          structured_description: string | null
           surgeon: string | null
           updated_at: string
         }
         Insert: {
+          assistants?: string[] | null
           created_at?: string
+          drawings?: string[] | null
           duration_minutes?: number | null
           episode_id?: string | null
+          extra_fields?: Json | null
           id?: string
+          main_surgeon?: string | null
           notes?: string | null
           operating_room?: string | null
           patient_id: string
           procedure_name: string
           scheduled_date?: string | null
           status?: string
+          structured_description?: string | null
           surgeon?: string | null
           updated_at?: string
         }
         Update: {
+          assistants?: string[] | null
           created_at?: string
+          drawings?: string[] | null
           duration_minutes?: number | null
           episode_id?: string | null
+          extra_fields?: Json | null
           id?: string
+          main_surgeon?: string | null
           notes?: string | null
           operating_room?: string | null
           patient_id?: string
           procedure_name?: string
           scheduled_date?: string | null
           status?: string
+          structured_description?: string | null
           surgeon?: string | null
           updated_at?: string
         }
