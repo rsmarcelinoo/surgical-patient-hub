@@ -1,5 +1,6 @@
 import { Users, Scissors, CheckCircle2, Clock } from "lucide-react";
 import { format } from "date-fns";
+import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/layout/Header";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { DataTable } from "@/components/dashboard/DataTable";
@@ -107,6 +108,7 @@ function KPICardSkeleton() {
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const {
     totalPatients,
     pendingSurgeries,
@@ -185,7 +187,7 @@ export default function Dashboard() {
             columns={surgeryColumns}
             data={upcomingSurgeries}
             emptyMessage="No upcoming surgeries scheduled"
-            onRowClick={(surgery) => console.log("View surgery", surgery.id)}
+            onRowClick={(surgery) => surgery.patients?.id && navigate(`/patient/${surgery.patients.id}`)}
           />
           
           <DataTable
@@ -193,7 +195,7 @@ export default function Dashboard() {
             columns={surgeryColumns}
             data={recentSurgeries}
             emptyMessage="No recent surgeries"
-            onRowClick={(surgery) => console.log("View surgery", surgery.id)}
+            onRowClick={(surgery) => surgery.patients?.id && navigate(`/patient/${surgery.patients.id}`)}
           />
         </div>
 
@@ -203,7 +205,7 @@ export default function Dashboard() {
             columns={waitingListColumns}
             data={waitingList}
             emptyMessage="No patients on waiting list"
-            onRowClick={(card) => console.log("View patient", card.patients?.id)}
+            onRowClick={(card) => card.patients?.id && navigate(`/patient/${card.patients.id}`)}
           />
         </div>
       </main>
