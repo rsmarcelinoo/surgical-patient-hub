@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, User, Users } from "lucide-react";
 import { format } from "date-fns";
+import { AddSurgeryDialog } from "./AddSurgeryDialog";
 
 interface PatientSurgeriesProps {
   patientId: string;
@@ -46,16 +47,25 @@ export function PatientSurgeries({ patientId }: PatientSurgeriesProps) {
 
   if (surgeries.length === 0) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          <p className="text-muted-foreground text-center py-8">No surgeries recorded</p>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <div className="flex justify-end">
+          <AddSurgeryDialog patientId={patientId} />
+        </div>
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-muted-foreground text-center py-8">No surgeries recorded</p>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <AddSurgeryDialog patientId={patientId} />
+      </div>
+      <div className="space-y-3">
       {surgeries.map((surgery) => (
         <Card key={surgery.id} className="hover:shadow-md transition-shadow">
           <CardHeader className="pb-2">
@@ -116,6 +126,7 @@ export function PatientSurgeries({ patientId }: PatientSurgeriesProps) {
           </CardContent>
         </Card>
       ))}
+      </div>
     </div>
   );
 }

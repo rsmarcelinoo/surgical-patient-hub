@@ -4,11 +4,46 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, MoreHorizontal, Calendar, User, GripVertical } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  ArrowLeft,
+  Plus,
+  MoreHorizontal,
+  Calendar,
+  User,
+  Flag,
+  Search,
+  Filter,
+  Settings,
+  Trash2,
+  Edit,
+} from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface KanbanColumn {
   id: string;
@@ -32,26 +67,22 @@ interface KanbanCard {
   };
 }
 
-const colorMap: Record<string, string> = {
-  gray: "bg-muted border-muted-foreground/30",
-  yellow: "bg-warning/10 border-warning",
-  green: "bg-success/10 border-success",
-  blue: "bg-info/10 border-info",
-  red: "bg-destructive/10 border-destructive",
+const columnColors: Record<string, { bg: string; badge: string; dot: string }> = {
+  gray: { bg: "bg-slate-50", badge: "bg-slate-200 text-slate-700", dot: "bg-slate-400" },
+  blue: { bg: "bg-blue-50", badge: "bg-blue-500 text-white", dot: "bg-blue-500" },
+  yellow: { bg: "bg-amber-50", badge: "bg-amber-500 text-white", dot: "bg-amber-500" },
+  orange: { bg: "bg-orange-50", badge: "bg-orange-500 text-white", dot: "bg-orange-500" },
+  red: { bg: "bg-red-50", badge: "bg-red-500 text-white", dot: "bg-red-500" },
+  green: { bg: "bg-emerald-50", badge: "bg-emerald-500 text-white", dot: "bg-emerald-500" },
+  purple: { bg: "bg-purple-50", badge: "bg-purple-500 text-white", dot: "bg-purple-500" },
+  pink: { bg: "bg-pink-50", badge: "bg-pink-400 text-white", dot: "bg-pink-400" },
 };
 
-const badgeColorMap: Record<string, string> = {
-  gray: "bg-muted text-muted-foreground",
-  yellow: "bg-warning text-warning-foreground",
-  green: "bg-success text-success-foreground",
-  blue: "bg-info text-info-foreground",
-  red: "bg-destructive text-destructive-foreground",
-};
-
-const priorityColors: Record<string, string> = {
-  high: "bg-destructive/10 text-destructive",
-  normal: "bg-muted text-muted-foreground",
-  low: "bg-success/10 text-success",
+const priorityConfig: Record<string, { icon: string; color: string }> = {
+  urgent: { icon: "🚨", color: "text-destructive" },
+  high: { icon: "🔴", color: "text-red-500" },
+  normal: { icon: "🟡", color: "text-amber-500" },
+  low: { icon: "🟢", color: "text-emerald-500" },
 };
 
 export default function KanbanBoard() {
@@ -59,6 +90,14 @@ export default function KanbanBoard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [draggedCard, setDraggedCard] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [addCardColumn, setAddCardColumn] = useState<string | null>(null);
+  const [newCardPatientId, setNewCardPatientId] = useState("");
+  const [newCardSurgeryType, setNewCardSurgeryType] = useState("");
+  const [newCardPriority, setNewCardPriority] = useState("normal");
+  const [addColumnOpen, setAddColumnOpen] = useState(false);
+  const [newColumnName, setNewColumnName] = useState("");
+  const [newColumnColor, setNewColumnColor] = useState("gray");
 
   const { data: board, isLoading: boardLoading } = useQuery({
     queryKey: ["kanban-board", id],
@@ -88,6 +127,18 @@ export default function KanbanBoard() {
     enabled: !!id,
   });
 
+  const { data: patients = [] } = useQuery({
+    queryKey: ["patients-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("patients")
+        .select("id, name, medical_record_number")
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const moveCardMutation = useMutation({
     mutationFn: async ({ cardId, newColumn }: { cardId: string; newColumn: string }) => {
       const { error } = await supabase
@@ -98,6 +149,64 @@ export default function KanbanBoard() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["kanban-cards", id] });
+      toast.success("Card moved successfully");
+    },
+  });
+
+  const addCardMutation = useMutation({
+    mutationFn: async ({
+      columnId,
+      patientId,
+      surgeryType,
+      priority,
+    }: {
+      columnId: string;
+      patientId: string;
+      surgeryType: string;
+      priority: string;
+    }) => {
+      const { error } = await supabase.from("kanban_cards").insert({
+        board_id: id!,
+        patient_id: patientId,
+        column_name: columnId,
+        surgery_type: surgeryType || null,
+        priority,
+        position: cards.filter((c) => c.column_name === columnId).length,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kanban-cards", id] });
+      setAddCardColumn(null);
+      setNewCardPatientId("");
+      setNewCardSurgeryType("");
+      setNewCardPriority("normal");
+      toast.success("Patient added to board");
+    },
+  });
+
+  const deleteCardMutation = useMutation({
+    mutationFn: async (cardId: string) => {
+      const { error } = await supabase.from("kanban_cards").delete().eq("id", cardId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kanban-cards", id] });
+      toast.success("Card removed");
+    },
+  });
+
+  const updateColumnsMutation = useMutation({
+    mutationFn: async (columns: KanbanColumn[]) => {
+      const { error } = await supabase
+        .from("kanban_boards")
+        .update({ columns_config: JSON.parse(JSON.stringify(columns)) })
+        .eq("id", id!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kanban-board", id] });
+      toast.success("Columns updated");
     },
   });
 
@@ -114,6 +223,26 @@ export default function KanbanBoard() {
       moveCardMutation.mutate({ cardId: draggedCard, newColumn: columnId });
       setDraggedCard(null);
     }
+  };
+
+  const handleAddColumn = () => {
+    if (!newColumnName.trim()) return;
+    const columns = (board?.columns_config as unknown as KanbanColumn[]) || [];
+    const newColumn: KanbanColumn = {
+      id: newColumnName.toLowerCase().replace(/\s+/g, "_"),
+      name: newColumnName,
+      color: newColumnColor,
+    };
+    updateColumnsMutation.mutate([...columns, newColumn]);
+    setAddColumnOpen(false);
+    setNewColumnName("");
+    setNewColumnColor("gray");
+  };
+
+  const handleDeleteColumn = (columnId: string) => {
+    const columns = (board?.columns_config as unknown as KanbanColumn[]) || [];
+    const filtered = columns.filter((c) => c.id !== columnId);
+    updateColumnsMutation.mutate(filtered);
   };
 
   if (boardLoading || cardsLoading) {
@@ -152,133 +281,325 @@ export default function KanbanBoard() {
   const columns: KanbanColumn[] = (board.columns_config as unknown) as KanbanColumn[];
 
   const getCardsForColumn = (columnId: string) => {
-    return cards.filter((card) => card.column_name === columnId);
+    return cards
+      .filter((card) => card.column_name === columnId)
+      .filter(
+        (card) =>
+          !searchQuery ||
+          card.patient?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          card.surgery_type?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-slate-100">
       <Header />
-      <main className="container py-6 space-y-6">
-        {/* Back button and board header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={() => navigate("/")} className="text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold">{board.name}</h1>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                {board.hospital && <span>{(board.hospital as { name: string }).name}</span>}
-                {board.service && (
-                  <>
-                    <span>•</span>
-                    <span>{board.service}</span>
-                  </>
-                )}
+      <main className="px-4 py-4 space-y-4">
+        {/* Board Header */}
+        <div className="bg-card rounded-lg border p-4">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/")}
+                className="text-muted-foreground"
+              >
+                <ArrowLeft className="h-4 w-4 mr-1" />
+                Back
+              </Button>
+              <div>
+                <h1 className="text-xl font-semibold">{board.name}</h1>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  {board.hospital && <span>{(board.hospital as { name: string }).name}</span>}
+                  {board.service && (
+                    <>
+                      <span>•</span>
+                      <span>{board.service}</span>
+                    </>
+                  )}
+                </div>
               </div>
+            </div>
+
+            {/* Toolbar */}
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search patients..."
+                  className="pl-9 w-60 h-9"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <Button variant="outline" size="sm">
+                <Filter className="h-4 w-4 mr-1" />
+                Filters
+              </Button>
+              <Dialog open={addColumnOpen} onOpenChange={setAddColumnOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Settings className="h-4 w-4 mr-1" />
+                    Add Column
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add New Column</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                      <Label>Column Name</Label>
+                      <Input
+                        value={newColumnName}
+                        onChange={(e) => setNewColumnName(e.target.value)}
+                        placeholder="e.g., In Progress"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Color</Label>
+                      <Select value={newColumnColor} onValueChange={setNewColumnColor}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.keys(columnColors).map((color) => (
+                            <SelectItem key={color} value={color}>
+                              <div className="flex items-center gap-2">
+                                <div className={cn("w-3 h-3 rounded-full", columnColors[color].dot)} />
+                                <span className="capitalize">{color}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button onClick={handleAddColumn} className="w-full">
+                      Add Column
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
         </div>
 
-        {/* Kanban columns */}
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        {/* Kanban Columns */}
+        <div className="flex gap-3 overflow-x-auto pb-4">
           {columns.map((column) => {
             const columnCards = getCardsForColumn(column.id);
+            const colors = columnColors[column.color] || columnColors.gray;
+
             return (
               <div
                 key={column.id}
-                className="flex-shrink-0 w-80"
+                className="flex-shrink-0 w-72"
                 onDragOver={handleDragOver}
                 onDrop={() => handleDrop(column.id)}
               >
-                <div className={cn("rounded-lg border-2 p-3", colorMap[column.color] || colorMap.gray)}>
-                  {/* Column header */}
-                  <div className="flex items-center justify-between mb-3">
+                {/* Column Header */}
+                <div className={cn("rounded-t-lg px-3 py-2", colors.bg)}>
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Badge className={cn("text-xs", badgeColorMap[column.color] || badgeColorMap.gray)}>
+                      <div className={cn("w-2 h-2 rounded-full", colors.dot)} />
+                      <Badge className={cn("text-xs font-medium uppercase", colors.badge)}>
                         {column.name}
                       </Badge>
-                      <span className="text-sm text-muted-foreground">{columnCards.length}</span>
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {columnCards.length}
+                      </span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" className="h-7 w-7">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-6 w-6">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => handleDeleteColumn(column.id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete Column
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => setAddCardColumn(column.id)}
+                      >
                         <Plus className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
+                </div>
 
-                  {/* Cards */}
-                  <div className="space-y-2 min-h-[200px]">
-                    {columnCards.map((card) => (
-                      <Card
-                        key={card.id}
-                        draggable
-                        onDragStart={() => handleDragStart(card.id)}
-                        className={cn(
-                          "cursor-grab active:cursor-grabbing bg-card hover:shadow-md transition-shadow",
-                          draggedCard === card.id && "opacity-50"
-                        )}
-                      >
-                        <CardContent className="p-3 space-y-2">
-                          {/* Card header with patient name */}
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-2">
-                              <GripVertical className="h-4 w-4 text-muted-foreground/50" />
-                              <span 
-                                className="font-medium text-sm cursor-pointer hover:text-primary"
-                                onClick={() => card.patient && navigate(`/patient/${card.patient.id}`)}
-                              >
-                                {card.patient?.name || "Unknown Patient"}
-                              </span>
-                            </div>
-                          </div>
+                {/* Cards Container */}
+                <div className={cn("min-h-[400px] rounded-b-lg p-2 space-y-2", colors.bg)}>
+                  {columnCards.map((card) => (
+                    <div
+                      key={card.id}
+                      draggable
+                      onDragStart={() => handleDragStart(card.id)}
+                      className={cn(
+                        "bg-card rounded-lg border shadow-sm p-3 cursor-grab active:cursor-grabbing",
+                        "hover:shadow-md transition-shadow",
+                        draggedCard === card.id && "opacity-50"
+                      )}
+                    >
+                      {/* Card Title */}
+                      <div className="flex items-start justify-between mb-2">
+                        <span
+                          className="font-medium text-sm cursor-pointer hover:text-primary"
+                          onClick={() => card.patient && navigate(`/patient/${card.patient.id}`)}
+                        >
+                          {card.patient?.name || "Unknown Patient"}
+                        </span>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 -mr-1 -mt-1">
+                              <MoreHorizontal className="h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => card.patient && navigate(`/patient/${card.patient.id}`)}>
+                              <Edit className="h-4 w-4 mr-2" />
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => deleteCardMutation.mutate(card.id)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Remove
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
 
-                          {/* Surgery type */}
-                          {card.surgery_type && (
-                            <p className="text-sm text-muted-foreground">{card.surgery_type}</p>
-                          )}
+                      {/* Surgery Type */}
+                      {card.surgery_type && (
+                        <p className="text-xs text-muted-foreground mb-2">{card.surgery_type}</p>
+                      )}
 
-                          {/* Card metadata */}
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {card.patient?.medical_record_number && (
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <User className="h-3 w-3" />
-                                <span>{card.patient.medical_record_number}</span>
-                              </div>
-                            )}
-                            {card.scheduled_date && (
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <Calendar className="h-3 w-3" />
-                                <span>{format(new Date(card.scheduled_date), "dd MMM")}</span>
-                              </div>
-                            )}
-                          </div>
+                      {/* Status Badge */}
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={cn("w-2 h-2 rounded-full", colors.dot)} />
+                        <span className="text-xs text-muted-foreground uppercase">{column.name}</span>
+                      </div>
 
-                          {/* Priority badge */}
-                          {card.priority && card.priority !== "normal" && (
-                            <Badge className={cn("text-xs", priorityColors[card.priority] || priorityColors.normal)}>
-                              {card.priority}
-                            </Badge>
-                          )}
+                      {/* MRN */}
+                      {card.patient?.medical_record_number && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                          <User className="h-3 w-3" />
+                          <span>{card.patient.medical_record_number}</span>
+                        </div>
+                      )}
 
-                          {/* Notes preview */}
-                          {card.notes && (
-                            <p className="text-xs text-muted-foreground line-clamp-2">{card.notes}</p>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
+                      {/* Date */}
+                      {card.scheduled_date && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                          <Calendar className="h-3 w-3" />
+                          <span className="text-primary">
+                            {format(new Date(card.scheduled_date), "MM/dd/yyyy")}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Priority */}
+                      {card.priority && (
+                        <div className="flex items-center gap-1 text-xs">
+                          <Flag className={cn("h-3 w-3", priorityConfig[card.priority]?.color || "text-muted-foreground")} />
+                          <span className="capitalize">{card.priority}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Add Task Button */}
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-muted-foreground hover:text-foreground"
+                    onClick={() => setAddCardColumn(column.id)}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add patient
+                  </Button>
                 </div>
               </div>
             );
           })}
         </div>
       </main>
+
+      {/* Add Card Dialog */}
+      <Dialog open={!!addCardColumn} onOpenChange={(open) => !open && setAddCardColumn(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Patient to Board</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Patient</Label>
+              <Select value={newCardPatientId} onValueChange={setNewCardPatientId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a patient" />
+                </SelectTrigger>
+                <SelectContent>
+                  {patients.map((patient) => (
+                    <SelectItem key={patient.id} value={patient.id}>
+                      {patient.name} {patient.medical_record_number && `(${patient.medical_record_number})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Surgery Type (optional)</Label>
+              <Input
+                value={newCardSurgeryType}
+                onChange={(e) => setNewCardSurgeryType(e.target.value)}
+                placeholder="e.g., Appendectomy"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Priority</Label>
+              <Select value={newCardPriority} onValueChange={setNewCardPriority}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="urgent">Urgent</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="normal">Normal</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              onClick={() =>
+                addCardColumn &&
+                newCardPatientId &&
+                addCardMutation.mutate({
+                  columnId: addCardColumn,
+                  patientId: newCardPatientId,
+                  surgeryType: newCardSurgeryType,
+                  priority: newCardPriority,
+                })
+              }
+              disabled={!newCardPatientId}
+              className="w-full"
+            >
+              Add Patient
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

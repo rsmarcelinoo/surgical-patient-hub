@@ -2,9 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, Pin, User } from "lucide-react";
+import { Pin, User } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { AddCommentForm } from "./AddCommentForm";
 
 interface PatientCommentsProps {
   patientId: string;
@@ -63,8 +64,15 @@ export function PatientComments({ patientId }: PatientCommentsProps) {
   };
 
   return (
-    <div className="space-y-3">
-      {comments.map((comment) => (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="p-4">
+          <AddCommentForm patientId={patientId} />
+        </CardContent>
+      </Card>
+      
+      <div className="space-y-3">
+        {comments.map((comment) => (
         <Card
           key={comment.id}
           className={cn(
@@ -98,8 +106,9 @@ export function PatientComments({ patientId }: PatientCommentsProps) {
               </div>
             </div>
           </CardContent>
-        </Card>
-      ))}
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
