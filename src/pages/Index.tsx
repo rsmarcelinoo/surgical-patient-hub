@@ -1,14 +1,19 @@
-import { Users, Scissors, CheckCircle2, Clock, Plus } from "lucide-react";
+/**
+ * Dashboard Page (Index)
+ * 
+ * Main dashboard showing KPIs, upcoming/recent surgeries, and waiting list.
+ */
+
+import { Users, Scissors, CheckCircle2, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
-import { Header } from "@/components/layout/Header";
+import { AppLayout } from "@/components/layout/AppLayout";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { DataTable } from "@/components/dashboard/DataTable";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { useDashboardData, Surgery, KanbanCard } from "@/hooks/useDashboardData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AddPatientDialog } from "@/components/patient/AddPatientDialog";
-import { Button } from "@/components/ui/button";
 
 const surgeryColumns = [
   {
@@ -123,8 +128,7 @@ export default function Dashboard() {
   } = useDashboardData();
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
+    <AppLayout>
       
       <main className="container py-6">
         {/* Page Title */}
@@ -214,6 +218,6 @@ export default function Dashboard() {
           />
         </div>
       </main>
-    </div>
+    </AppLayout>
   );
 }
