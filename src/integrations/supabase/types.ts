@@ -450,6 +450,7 @@ export type Database = {
           duration_minutes: number | null
           episode_id: string | null
           extra_fields: Json | null
+          hospital_id: string | null
           id: string
           main_surgeon: string | null
           notes: string | null
@@ -469,6 +470,7 @@ export type Database = {
           duration_minutes?: number | null
           episode_id?: string | null
           extra_fields?: Json | null
+          hospital_id?: string | null
           id?: string
           main_surgeon?: string | null
           notes?: string | null
@@ -488,6 +490,7 @@ export type Database = {
           duration_minutes?: number | null
           episode_id?: string | null
           extra_fields?: Json | null
+          hospital_id?: string | null
           id?: string
           main_surgeon?: string | null
           notes?: string | null
@@ -506,6 +509,13 @@ export type Database = {
             columns: ["episode_id"]
             isOneToOne: false
             referencedRelation: "episodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "surgeries_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
             referencedColumns: ["id"]
           },
           {

@@ -56,8 +56,10 @@ export function AddPatientDialog({ trigger }: AddPatientDialogProps) {
       if (error) throw error;
     },
     onSuccess: () => {
+      // Invalidate all patient-related queries to refresh lists
       queryClient.invalidateQueries({ queryKey: ["patients"] });
       queryClient.invalidateQueries({ queryKey: ["patients-list"] });
+      queryClient.invalidateQueries({ queryKey: ["patients-list-view"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       setOpen(false);
       setFormData({
