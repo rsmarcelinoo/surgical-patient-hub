@@ -95,6 +95,12 @@ export default function CalendarView() {
         .lte("scheduled_date", monthEnd.toISOString())
         .order("scheduled_date");
 
+      // Apply hospital filter
+      if (hospitalFilter !== "all") {
+        query = query.eq("hospital_id", hospitalFilter);
+      }
+
+      // Apply status filter
       if (statusFilter !== "all") {
         query = query.eq("status", statusFilter);
       }

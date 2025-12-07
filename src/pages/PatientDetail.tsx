@@ -1,18 +1,21 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Header } from "@/components/layout/Header";
+import { AppLayout } from "@/components/layout/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, User, Calendar, Phone, Mail, MapPin, FileText, Stethoscope, MessageSquare, Paperclip, Activity } from "lucide-react";
+import { ArrowLeft, User, Calendar, Phone, Mail, MapPin, FileText, Stethoscope, MessageSquare, Paperclip, Activity, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { PatientEpisodes } from "@/components/patient/PatientEpisodes";
 import { PatientSurgeries } from "@/components/patient/PatientSurgeries";
 import { PatientConsultations } from "@/components/patient/PatientConsultations";
 import { PatientComments } from "@/components/patient/PatientComments";
 import { PatientAttachments } from "@/components/patient/PatientAttachments";
+import { AddEpisodeDialog } from "@/components/patient/AddEpisodeDialog";
+import { AddConsultationDialog } from "@/components/patient/AddConsultationDialog";
+import { AddSurgeryDialog } from "@/components/patient/AddSurgeryDialog";
 
 export default function PatientDetail() {
   const { id } = useParams<{ id: string }>();
@@ -34,30 +37,28 @@ export default function PatientDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <main className="container py-8">
+      <AppLayout>
+        <div className="p-6">
           <div className="animate-pulse space-y-4">
             <div className="h-8 w-48 bg-muted rounded" />
             <div className="h-32 bg-muted rounded" />
           </div>
-        </main>
-      </div>
+        </div>
+      </AppLayout>
     );
   }
 
   if (!patient) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <main className="container py-8">
+      <AppLayout>
+        <div className="p-6">
           <p className="text-muted-foreground">Patient not found</p>
           <Button variant="outline" onClick={() => navigate("/")} className="mt-4">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Dashboard
           </Button>
-        </main>
-      </div>
+        </div>
+      </AppLayout>
     );
   }
 
@@ -66,9 +67,8 @@ export default function PatientDetail() {
     : null;
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <main className="container py-6 space-y-6">
+    <AppLayout>
+      <div className="p-6 space-y-6">
         {/* Back button */}
         <Button variant="ghost" onClick={() => navigate("/")} className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -157,15 +157,30 @@ export default function PatientDetail() {
           </TabsList>
 
           <TabsContent value="episodes">
-            <PatientEpisodes patientId={patient.id} />
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <AddEpisodeDialog patientId={patient.id} />
+              </div>
+              <PatientEpisodes patientId={patient.id} />
+            </div>
           </TabsContent>
 
           <TabsContent value="surgeries">
-            <PatientSurgeries patientId={patient.id} />
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <AddSurgeryDialog patientId={patient.id} />
+              </div>
+              <PatientSurgeries patientId={patient.id} />
+            </div>
           </TabsContent>
 
           <TabsContent value="consultations">
-            <PatientConsultations patientId={patient.id} />
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <AddConsultationDialog patientId={patient.id} />
+              </div>
+              <PatientConsultations patientId={patient.id} />
+            </div>
           </TabsContent>
 
           <TabsContent value="comments">
@@ -176,7 +191,7 @@ export default function PatientDetail() {
             <PatientAttachments patientId={patient.id} />
           </TabsContent>
         </Tabs>
-      </main>
-    </div>
+      </div>
+    </AppLayout>
   );
 }
