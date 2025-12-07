@@ -1,3 +1,10 @@
+/**
+ * PatientAttachments Component
+ * 
+ * Displays and manages file attachments for a patient.
+ * Supports filtering by episode and surgery.
+ */
+
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -5,9 +12,13 @@ import { Badge } from "@/components/ui/badge";
 import { FileText, Image, File, Download, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { FileUpload } from "./FileUpload";
 
 interface PatientAttachmentsProps {
+  /** Patient ID to fetch attachments for */
   patientId: string;
+  /** Optional surgery ID to filter attachments */
+  surgeryId?: string;
 }
 
 const typeIcons: Record<string, React.ReactNode> = {
@@ -26,15 +37,21 @@ const typeColors: Record<string, string> = {
   document: "bg-muted text-muted-foreground",
 };
 
-export function PatientAttachments({ patientId }: PatientAttachmentsProps) {
+export function PatientAttachments({ patientId, surgeryId }: PatientAttachmentsProps) {
   const { data: attachments = [], isLoading } = useQuery({
-    queryKey: ["patient-attachments", patientId],
+    queryKey: ["patient-attachments", patientId, surgeryId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("attachments")
         .select("*")
-        .eq("patient_id", patientId)
-        .order("uploaded_at", { ascending: false });
+        .eq("patient_id", patientId);
+      
+      // Filter by surgery if provided
+      if (surgeryId) {
+        query = query.eq("surgery_id", surgeryId);
+      }
+      
+      const { data, error } = await query.order("uploaded_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -58,13 +75,20 @@ export function PatientAttachments({ patientId }: PatientAttachmentsProps) {
     return (
       <Card>
         <CardContent className="p-6">
-          <p className="text-muted-foreground text-center py-8">No attachments uploaded</p>
+          <div className="text-center py-8">
+            <p className="text-muted-foreground mb-4">No attachments uploaded</p>
+            <FileUpload patientId={patientId} surgeryId={surgeryId} />
+          </div>
         </CardContent>
       </Card>
     );
   }
 
   return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <FileUpload patientId={patientId} surgeryId={surgeryId} />
+      </div>
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {attachments.map((attachment) => (
         <Card key={attachment.id} className="hover:shadow-md transition-shadow">
@@ -107,6 +131,7 @@ export function PatientAttachments({ patientId }: PatientAttachmentsProps) {
           </CardContent>
         </Card>
       ))}
+      </div>
     </div>
   );
 }

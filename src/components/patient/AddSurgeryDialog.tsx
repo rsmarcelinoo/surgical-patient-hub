@@ -22,8 +22,13 @@ import {
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
+/**
+ * Props for AddSurgeryDialog component
+ */
 interface AddSurgeryDialogProps {
+  /** Patient ID to associate the surgery with */
   patientId: string;
+  /** Optional custom trigger element */
   trigger?: React.ReactNode;
 }
 
@@ -31,10 +36,12 @@ export function AddSurgeryDialog({ patientId, trigger }: AddSurgeryDialogProps) 
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
 
+  // Form state with hospital_id and status defaulting to "scheduled"
   const [formData, setFormData] = useState({
     procedure_name: "",
     scheduled_date: "",
     status: "scheduled",
+    hospital_id: "",
     main_surgeon: "",
     assistants: "",
     operating_room: "",
@@ -42,6 +49,19 @@ export function AddSurgeryDialog({ patientId, trigger }: AddSurgeryDialogProps) 
     structured_description: "",
     notes: "",
     episode_id: "",
+  });
+
+  // Fetch hospitals for dropdown
+  const { data: hospitals = [] } = useQuery({
+    queryKey: ["hospitals"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("hospitals")
+        .select("id, name")
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
   });
 
   const { data: episodes = [] } = useQuery({
@@ -57,6 +77,10 @@ export function AddSurgeryDialog({ patientId, trigger }: AddSurgeryDialogProps) 
     },
   });
 
+  /**
+   * Mutation to insert new surgery into database
+   * Includes hospital_id and defaults status to "scheduled"
+   */
   const addSurgeryMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       const { error } = await supabase.from("surgeries").insert({
@@ -64,6 +88,7 @@ export function AddSurgeryDialog({ patientId, trigger }: AddSurgeryDialogProps) 
         procedure_name: data.procedure_name,
         scheduled_date: data.scheduled_date || null,
         status: data.status,
+        hospital_id: data.hospital_id || null,
         main_surgeon: data.main_surgeon || null,
         assistants: data.assistants ? data.assistants.split(",").map((s) => s.trim()) : null,
         operating_room: data.operating_room || null,
@@ -77,11 +102,13 @@ export function AddSurgeryDialog({ patientId, trigger }: AddSurgeryDialogProps) 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patient-surgeries", patientId] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["surgeries"] });
       setOpen(false);
       setFormData({
         procedure_name: "",
         scheduled_date: "",
         status: "scheduled",
+        hospital_id: "",
         main_surgeon: "",
         assistants: "",
         operating_room: "",
@@ -97,10 +124,17 @@ export function AddSurgeryDialog({ patientId, trigger }: AddSurgeryDialogProps) 
     },
   });
 
+  /**
+   * Handle form submission with validation
+   */
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.procedure_name.trim()) {
       toast.error("Procedure name is required");
+      return;
+    }
+    if (!formData.hospital_id) {
+      toast.error("Hospital is required");
       return;
     }
     addSurgeryMutation.mutate(formData);
@@ -130,6 +164,26 @@ export function AddSurgeryDialog({ patientId, trigger }: AddSurgeryDialogProps) 
               placeholder="e.g., Laparoscopic Cholecystectomy"
               required
             />
+          </div>
+
+          {/* Hospital Selection - Required for surgery */}
+          <div className="space-y-2">
+            <Label htmlFor="hospital">Hospital *</Label>
+            <Select
+              value={formData.hospital_id}
+              onValueChange={(value) => setFormData({ ...formData, hospital_id: value })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select hospital" />
+              </SelectTrigger>
+              <SelectContent>
+                {hospitals.map((hospital) => (
+                  <SelectItem key={hospital.id} value={hospital.id}>
+                    {hospital.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
