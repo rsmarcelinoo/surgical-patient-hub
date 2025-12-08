@@ -166,12 +166,7 @@ export default function PatientDetail() {
           </TabsContent>
 
           <TabsContent value="surgeries">
-            <div className="space-y-4">
-              <div className="flex justify-end">
-                <AddSurgeryDialog patientId={patient.id} />
-              </div>
-              <PatientSurgeries patientId={patient.id} />
-            </div>
+            <PatientSurgeries patientId={patient.id} />
           </TabsContent>
 
           <TabsContent value="consultations">

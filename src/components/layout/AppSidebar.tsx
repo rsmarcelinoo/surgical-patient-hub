@@ -23,10 +23,10 @@ import {
   Calendar,
   List,
   Building2,
-  Filter,
   Plus,
   ChevronDown,
   Settings,
+  Scissors,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -190,7 +190,17 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild isActive={isActive("/list")}>
                   <Link to="/list">
                     <List className="h-4 w-4" />
-                    {!collapsed && <span>List View</span>}
+                    {!collapsed && <span>Patients</span>}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              {/* Surgeries View */}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.pathname.startsWith("/surgeries")}>
+                  <Link to="/surgeries">
+                    <Scissors className="h-4 w-4" />
+                    {!collapsed && <span>Surgeries</span>}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
