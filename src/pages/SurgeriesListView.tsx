@@ -60,6 +60,7 @@ interface SurgeryWithPatient {
 /** Status badge colors */
 const statusColors: Record<string, string> = {
   scheduled: "bg-warning text-warning-foreground",
+  pending: "bg-orange-500 text-white",
   completed: "bg-success text-success-foreground",
   cancelled: "bg-destructive text-destructive-foreground",
   in_progress: "bg-info text-info-foreground",
@@ -194,6 +195,7 @@ export default function SurgeriesListView() {
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="in_progress">In Progress</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>

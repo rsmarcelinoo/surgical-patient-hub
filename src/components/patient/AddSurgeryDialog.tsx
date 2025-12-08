@@ -79,10 +79,11 @@ export function AddSurgeryDialog({ patientId, trigger }: AddSurgeryDialogProps) 
 
   /**
    * Mutation to insert new surgery into database
-   * Includes hospital_id and defaults status to "scheduled"
+   * Also updates kanban card column based on surgery status
    */
   const addSurgeryMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
+      // Insert the surgery
       const { error } = await supabase.from("surgeries").insert({
         patient_id: patientId,
         procedure_name: data.procedure_name,
@@ -98,11 +99,35 @@ export function AddSurgeryDialog({ patientId, trigger }: AddSurgeryDialogProps) 
         episode_id: data.episode_id || null,
       });
       if (error) throw error;
+
+      // Update kanban card column to match surgery status
+      // Map surgery status to kanban column
+      const statusToColumn: Record<string, string> = {
+        scheduled: "scheduled",
+        pending: "pending",
+        in_progress: "pending",
+        completed: "operated",
+        cancelled: "waiting",
+      };
+      
+      const newColumn = statusToColumn[data.status] || "scheduled";
+      
+      // Update all kanban cards for this patient
+      await supabase
+        .from("kanban_cards")
+        .update({ 
+          column_name: newColumn,
+          scheduled_date: data.scheduled_date || null,
+        })
+        .eq("patient_id", patientId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patient-surgeries", patientId] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["surgeries"] });
+      queryClient.invalidateQueries({ queryKey: ["kanban-cards"] });
+      queryClient.invalidateQueries({ queryKey: ["waiting-list"] });
+      queryClient.invalidateQueries({ queryKey: ["waiting-list-count"] });
       setOpen(false);
       setFormData({
         procedure_name: "",
@@ -207,6 +232,7 @@ export function AddSurgeryDialog({ patientId, trigger }: AddSurgeryDialogProps) 
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="in_progress">In Progress</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>

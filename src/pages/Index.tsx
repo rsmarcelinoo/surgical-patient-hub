@@ -183,7 +183,7 @@ export default function Dashboard() {
                 subtitle="Patients awaiting surgery"
                 icon={Clock}
                 variant="waiting"
-                onClick={() => navigate("/list")}
+                onClick={() => navigate("/list?kanbanColumn=waiting")}
               />
             </>
           )}
