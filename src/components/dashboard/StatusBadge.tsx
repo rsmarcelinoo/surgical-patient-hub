@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-type StatusType = "scheduled" | "completed" | "cancelled" | "in-progress" | "waiting" | "active";
+type StatusType = "scheduled" | "completed" | "cancelled" | "in-progress" | "in_progress" | "pending" | "waiting" | "active" | "operated" | "follow_up";
 
 interface StatusBadgeProps {
   status: StatusType | string;
@@ -15,6 +15,10 @@ const statusConfig: Record<string, { label: string; className: string }> = {
     label: "Completed",
     className: "bg-success/15 text-success border-success/30",
   },
+  operated: {
+    label: "Operated",
+    className: "bg-success/15 text-success border-success/30",
+  },
   cancelled: {
     label: "Cancelled",
     className: "bg-destructive/15 text-destructive border-destructive/30",
@@ -23,6 +27,14 @@ const statusConfig: Record<string, { label: string; className: string }> = {
     label: "In Progress",
     className: "bg-warning/15 text-warning border-warning/30",
   },
+  in_progress: {
+    label: "In Progress",
+    className: "bg-warning/15 text-warning border-warning/30",
+  },
+  pending: {
+    label: "Pending",
+    className: "bg-orange-500/15 text-orange-600 border-orange-500/30",
+  },
   waiting: {
     label: "Waiting",
     className: "bg-warning/15 text-warning border-warning/30",
@@ -30,6 +42,10 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   active: {
     label: "Active",
     className: "bg-success/15 text-success border-success/30",
+  },
+  follow_up: {
+    label: "Follow-up",
+    className: "bg-purple-500/15 text-purple-600 border-purple-500/30",
   },
 };
 

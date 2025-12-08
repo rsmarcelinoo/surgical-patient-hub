@@ -2,19 +2,19 @@
  * ListView Page
  * 
  * Displays all patients in a filterable, sortable table format.
- * Provides comprehensive filtering by date, urgency, hospital, and custom tags.
+ * Provides comprehensive filtering by date, urgency, hospital, kanban column, and custom tags.
  * 
  * Features:
  * - Full patient list with search
- * - Advanced filtering (date range, urgency, hospital, tags)
+ * - Advanced filtering (date range, urgency, hospital, kanban column, tags)
  * - Sortable columns
  * - Quick actions for each patient
  * - Pagination for large datasets
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -72,19 +72,39 @@ const urgencyLevels = [
   { value: "low", label: "Low" },
 ];
 
+/** Kanban column options for filtering */
+const kanbanColumns = [
+  { value: "all", label: "All Columns" },
+  { value: "waiting", label: "Waiting List" },
+  { value: "scheduled", label: "Scheduled" },
+  { value: "pending", label: "Pending" },
+  { value: "operated", label: "Operated" },
+  { value: "follow_up", label: "Follow-up" },
+];
+
 export default function ListView() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   
-  // Search and filter states
+  // Search and filter states - initialize from URL params
   const [searchQuery, setSearchQuery] = useState("");
   const [hospitalFilter, setHospitalFilter] = useState<string>("all");
   const [urgencyFilter, setUrgencyFilter] = useState<string>("all");
+  const [kanbanColumnFilter, setKanbanColumnFilter] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   
   // Sort state
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+  // Initialize filters from URL params
+  useEffect(() => {
+    const kanbanColumn = searchParams.get("kanbanColumn");
+    if (kanbanColumn) {
+      setKanbanColumnFilter(kanbanColumn);
+    }
+  }, [searchParams]);
 
   /**
    * Fetch all hospitals for filter dropdown
@@ -117,14 +137,14 @@ export default function ListView() {
   });
 
   /**
-   * Fetch kanban cards to get urgency info
+   * Fetch kanban cards to get urgency and column info
    */
   const { data: kanbanCards = [] } = useQuery({
-    queryKey: ["kanban-cards-urgency"],
+    queryKey: ["kanban-cards-list-filter"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("kanban_cards")
-        .select("patient_id, priority, board_id, kanban_boards(hospital_id)");
+        .select("patient_id, priority, column_name, board_id, kanban_boards(hospital_id)");
       if (error) throw error;
       return data;
     },
@@ -167,6 +187,14 @@ export default function ListView() {
       result = result.filter((p) => patientIdsWithUrgency.includes(p.id));
     }
 
+    // Kanban column filter
+    if (kanbanColumnFilter !== "all") {
+      const patientIdsInColumn = kanbanCards
+        .filter((card) => card.column_name === kanbanColumnFilter)
+        .map((card) => card.patient_id);
+      result = result.filter((p) => patientIdsInColumn.includes(p.id));
+    }
+
     // Date range filter (based on created_at)
     if (dateFrom) {
       result = result.filter((p) => isAfter(parseISO(p.created_at), dateFrom));
@@ -207,7 +235,7 @@ export default function ListView() {
     });
 
     return result;
-  }, [patients, searchQuery, hospitalFilter, urgencyFilter, dateFrom, dateTo, sortField, sortDirection, kanbanCards]);
+  }, [patients, searchQuery, hospitalFilter, urgencyFilter, kanbanColumnFilter, dateFrom, dateTo, sortField, sortDirection, kanbanCards]);
 
   /**
    * Toggle sort direction or change sort field
@@ -230,17 +258,27 @@ export default function ListView() {
   };
 
   /**
+   * Get patient's kanban column
+   */
+  const getPatientKanbanColumn = (patientId: string) => {
+    const card = kanbanCards.find((c) => c.patient_id === patientId);
+    return card?.column_name || null;
+  };
+
+  /**
    * Clear all filters
    */
   const clearFilters = () => {
     setSearchQuery("");
     setHospitalFilter("all");
     setUrgencyFilter("all");
+    setKanbanColumnFilter("all");
     setDateFrom(undefined);
+    setSearchParams({});
     setDateTo(undefined);
   };
 
-  const hasFilters = searchQuery || hospitalFilter !== "all" || urgencyFilter !== "all" || dateFrom || dateTo;
+  const hasFilters = searchQuery || hospitalFilter !== "all" || urgencyFilter !== "all" || kanbanColumnFilter !== "all" || dateFrom || dateTo;
 
   /**
    * Render sort indicator
@@ -317,6 +355,20 @@ export default function ListView() {
                   {urgencyLevels.map((level) => (
                     <SelectItem key={level.value} value={level.value}>
                       {level.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Kanban Column Filter */}
+              <Select value={kanbanColumnFilter} onValueChange={setKanbanColumnFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="All Columns" />
+                </SelectTrigger>
+                <SelectContent>
+                  {kanbanColumns.map((col) => (
+                    <SelectItem key={col.value} value={col.value}>
+                      {col.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
