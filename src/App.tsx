@@ -16,6 +16,7 @@ import PatientDetail from "./pages/PatientDetail";
 import KanbanBoard from "./pages/KanbanBoard";
 import CalendarView from "./pages/CalendarView";
 import ListView from "./pages/ListView";
+import SurgeriesListView from "./pages/SurgeriesListView";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/kanban/:id" element={<KanbanBoard />} />
             <Route path="/calendar" element={<CalendarView />} />
             <Route path="/list" element={<ListView />} />
+            <Route path="/surgeries" element={<SurgeriesListView />} />
             <Route path="/settings" element={<Settings />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

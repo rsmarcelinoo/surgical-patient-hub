@@ -159,7 +159,7 @@ export default function Dashboard() {
                 subtitle="Registered in system"
                 icon={Users}
                 variant="patients"
-                onClick={() => console.log("Navigate to patients")}
+                onClick={() => navigate("/list")}
               />
               <KPICard
                 title="Pending Surgeries"
@@ -167,7 +167,7 @@ export default function Dashboard() {
                 subtitle="Scheduled procedures"
                 icon={Scissors}
                 variant="surgeries"
-                onClick={() => console.log("Navigate to pending surgeries")}
+                onClick={() => navigate("/surgeries?status=scheduled")}
               />
               <KPICard
                 title="Completed This Month"
@@ -175,7 +175,7 @@ export default function Dashboard() {
                 subtitle="Successfully performed"
                 icon={CheckCircle2}
                 variant="completed"
-                onClick={() => console.log("Navigate to completed")}
+                onClick={() => navigate("/surgeries?status=completed")}
               />
               <KPICard
                 title="Waiting List"
@@ -183,7 +183,7 @@ export default function Dashboard() {
                 subtitle="Patients awaiting surgery"
                 icon={Clock}
                 variant="waiting"
-                onClick={() => console.log("Navigate to waiting list")}
+                onClick={() => navigate("/list")}
               />
             </>
           )}

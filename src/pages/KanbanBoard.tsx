@@ -1,8 +1,16 @@
-import { useState } from "react";
+/**
+ * KanbanBoard Page
+ * 
+ * Displays a kanban board for managing patient workflow.
+ * Uses AppLayout for consistent sidebar navigation.
+ * Supports filtering by hospital, urgency, and date range.
+ */
+
+import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Header } from "@/components/layout/Header";
+import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -27,21 +35,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { KanbanFilters, FilterState } from "@/components/kanban/KanbanFilters";
 import {
-  ArrowLeft,
   Plus,
   MoreHorizontal,
   Calendar,
   User,
   Flag,
-  Search,
-  Filter,
   Settings,
   Trash2,
   Edit,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, isAfter, isBefore } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -90,7 +95,6 @@ export default function KanbanBoard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [draggedCard, setDraggedCard] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
   const [addCardColumn, setAddCardColumn] = useState<string | null>(null);
   const [newCardPatientId, setNewCardPatientId] = useState("");
   const [newCardSurgeryType, setNewCardSurgeryType] = useState("");
@@ -99,12 +103,22 @@ export default function KanbanBoard() {
   const [newColumnName, setNewColumnName] = useState("");
   const [newColumnColor, setNewColumnColor] = useState("gray");
 
+  // Filter state
+  const [filters, setFilters] = useState<FilterState>({
+    search: "",
+    hospital: "all",
+    urgency: "all",
+    dateFrom: undefined,
+    dateTo: undefined,
+    tags: [],
+  });
+
   const { data: board, isLoading: boardLoading } = useQuery({
     queryKey: ["kanban-board", id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("kanban_boards")
-        .select("*, hospital:hospitals(name)")
+        .select("*, hospital:hospitals(id, name)")
         .eq("id", id!)
         .maybeSingle();
       if (error) throw error;
@@ -245,11 +259,45 @@ export default function KanbanBoard() {
     updateColumnsMutation.mutate(filtered);
   };
 
+  // Filter cards based on filter state
+  const getCardsForColumn = useMemo(() => {
+    return (columnId: string) => {
+      return cards
+        .filter((card) => card.column_name === columnId)
+        .filter((card) => {
+          // Search filter
+          if (filters.search) {
+            const query = filters.search.toLowerCase();
+            const matchesName = card.patient?.name.toLowerCase().includes(query);
+            const matchesMrn = card.patient?.medical_record_number?.toLowerCase().includes(query);
+            const matchesSurgeryType = card.surgery_type?.toLowerCase().includes(query);
+            if (!matchesName && !matchesMrn && !matchesSurgeryType) return false;
+          }
+
+          // Urgency filter
+          if (filters.urgency !== "all" && card.priority !== filters.urgency) {
+            return false;
+          }
+
+          // Date range filter
+          if (card.scheduled_date) {
+            const cardDate = new Date(card.scheduled_date);
+            if (filters.dateFrom && isBefore(cardDate, filters.dateFrom)) return false;
+            if (filters.dateTo && isAfter(cardDate, filters.dateTo)) return false;
+          } else if (filters.dateFrom || filters.dateTo) {
+            // If date filter is set but card has no date, exclude it
+            return false;
+          }
+
+          return true;
+        });
+    };
+  }, [cards, filters]);
+
   if (boardLoading || cardsLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <main className="container py-8">
+      <AppLayout>
+        <div className="p-6">
           <div className="animate-pulse space-y-4">
             <div className="h-8 w-48 bg-muted rounded" />
             <div className="flex gap-4">
@@ -258,85 +306,48 @@ export default function KanbanBoard() {
               ))}
             </div>
           </div>
-        </main>
-      </div>
+        </div>
+      </AppLayout>
     );
   }
 
   if (!board) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <main className="container py-8">
+      <AppLayout>
+        <div className="p-6">
           <p className="text-muted-foreground">Board not found</p>
           <Button variant="outline" onClick={() => navigate("/")} className="mt-4">
-            <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Dashboard
           </Button>
-        </main>
-      </div>
+        </div>
+      </AppLayout>
     );
   }
 
   const columns: KanbanColumn[] = (board.columns_config as unknown) as KanbanColumn[];
 
-  const getCardsForColumn = (columnId: string) => {
-    return cards
-      .filter((card) => card.column_name === columnId)
-      .filter(
-        (card) =>
-          !searchQuery ||
-          card.patient?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          card.surgery_type?.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-  };
-
   return (
-    <div className="min-h-screen bg-slate-100">
-      <Header />
-      <main className="px-4 py-4 space-y-4">
+    <AppLayout>
+      <div className="p-4 space-y-4 min-h-full bg-slate-100">
         {/* Board Header */}
         <div className="bg-card rounded-lg border p-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate("/")}
-                className="text-muted-foreground"
-              >
-                <ArrowLeft className="h-4 w-4 mr-1" />
-                Back
-              </Button>
-              <div>
-                <h1 className="text-xl font-semibold">{board.name}</h1>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  {board.hospital && <span>{(board.hospital as { name: string }).name}</span>}
-                  {board.service && (
-                    <>
-                      <span>•</span>
-                      <span>{board.service}</span>
-                    </>
-                  )}
-                </div>
+            <div>
+              <h1 className="text-xl font-semibold">{board.name}</h1>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                {board.hospital && <span>{(board.hospital as { name: string }).name}</span>}
+                {board.service && (
+                  <>
+                    <span>•</span>
+                    <span>{board.service}</span>
+                  </>
+                )}
               </div>
             </div>
 
             {/* Toolbar */}
             <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search patients..."
-                  className="pl-9 w-60 h-9"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-              <Button variant="outline" size="sm">
-                <Filter className="h-4 w-4 mr-1" />
-                Filters
-              </Button>
+              <KanbanFilters filters={filters} onFiltersChange={setFilters} />
               <Dialog open={addColumnOpen} onOpenChange={setAddColumnOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm">
@@ -535,7 +546,7 @@ export default function KanbanBoard() {
             );
           })}
         </div>
-      </main>
+      </div>
 
       {/* Add Card Dialog */}
       <Dialog open={!!addCardColumn} onOpenChange={(open) => !open && setAddCardColumn(null)}>
@@ -600,6 +611,6 @@ export default function KanbanBoard() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </AppLayout>
   );
 }
