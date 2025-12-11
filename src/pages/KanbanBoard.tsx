@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { KanbanFilters, FilterState } from "@/components/kanban/KanbanFilters";
+import { PatientCardDialog } from "@/components/kanban/PatientCardDialog";
 import {
   Plus,
   MoreHorizontal,
@@ -102,6 +103,13 @@ export default function KanbanBoard() {
   const [addColumnOpen, setAddColumnOpen] = useState(false);
   const [newColumnName, setNewColumnName] = useState("");
   const [newColumnColor, setNewColumnColor] = useState("gray");
+
+  // Selected card for dialog
+  const [selectedCard, setSelectedCard] = useState<{
+    cardId: string;
+    patientId: string;
+    columnName: string;
+  } | null>(null);
 
   // Filter state
   const [filters, setFilters] = useState<FilterState>({
@@ -457,37 +465,45 @@ export default function KanbanBoard() {
                       key={card.id}
                       draggable
                       onDragStart={() => handleDragStart(card.id)}
+                      onClick={() => card.patient && setSelectedCard({
+                        cardId: card.id,
+                        patientId: card.patient.id,
+                        columnName: column.name,
+                      })}
                       className={cn(
-                        "bg-card rounded-lg border shadow-sm p-3 cursor-grab active:cursor-grabbing",
+                        "bg-card rounded-lg border shadow-sm p-3 cursor-pointer",
                         "hover:shadow-md transition-shadow",
                         draggedCard === card.id && "opacity-50"
                       )}
                     >
                       {/* Card Title */}
                       <div className="flex items-start justify-between mb-2">
-                        <span
-                          className="font-medium text-sm cursor-pointer hover:text-primary"
-                          onClick={() => card.patient && navigate(`/patient/${card.patient.id}`)}
-                        >
+                        <span className="font-medium text-sm hover:text-primary">
                           {card.patient?.name || "Unknown Patient"}
                         </span>
                         <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                             <Button variant="ghost" size="icon" className="h-6 w-6 -mr-1 -mt-1">
                               <MoreHorizontal className="h-3 w-3" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => card.patient && navigate(`/patient/${card.patient.id}`)}>
+                            <DropdownMenuItem onClick={(e) => {
+                              e.stopPropagation();
+                              card.patient && navigate(`/patient/${card.patient.id}`);
+                            }}>
                               <Edit className="h-4 w-4 mr-2" />
-                              View Details
+                              Full Details
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-destructive"
-                              onClick={() => deleteCardMutation.mutate(card.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteCardMutation.mutate(card.id);
+                              }}
                             >
                               <Trash2 className="h-4 w-4 mr-2" />
-                              Remove
+                              Remove from Board
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -611,6 +627,18 @@ export default function KanbanBoard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Patient Card Dialog */}
+      {selectedCard && (
+        <PatientCardDialog
+          open={!!selectedCard}
+          onOpenChange={(open) => !open && setSelectedCard(null)}
+          cardId={selectedCard.cardId}
+          patientId={selectedCard.patientId}
+          columnName={selectedCard.columnName}
+          boardId={id!}
+        />
+      )}
     </AppLayout>
   );
 }
