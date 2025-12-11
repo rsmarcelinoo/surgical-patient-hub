@@ -4,6 +4,7 @@
  * Displays a kanban board for managing patient workflow.
  * Uses AppLayout for consistent sidebar navigation.
  * Supports filtering by hospital, urgency, and date range.
+ * Supports column and card drag-and-drop reordering.
  */
 
 import { useState, useMemo } from "react";
@@ -33,10 +34,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { KanbanFilters, FilterState } from "@/components/kanban/KanbanFilters";
 import { PatientCardDialog } from "@/components/kanban/PatientCardDialog";
+import { CreatePatientInKanban } from "@/components/kanban/CreatePatientInKanban";
 import {
   Plus,
   MoreHorizontal,
@@ -46,6 +49,8 @@ import {
   Settings,
   Trash2,
   Edit,
+  GripVertical,
+  UserPlus,
 } from "lucide-react";
 import { format, isAfter, isBefore } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -66,6 +71,7 @@ interface KanbanCard {
   priority: string | null;
   scheduled_date: string | null;
   surgery_type: string | null;
+  manual_override?: boolean;
   patient?: {
     id: string;
     name: string;
@@ -95,14 +101,24 @@ export default function KanbanBoard() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  
+  // Drag state
   const [draggedCard, setDraggedCard] = useState<string | null>(null);
+  const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+  
+  // Add card state
   const [addCardColumn, setAddCardColumn] = useState<string | null>(null);
   const [newCardPatientId, setNewCardPatientId] = useState("");
   const [newCardSurgeryType, setNewCardSurgeryType] = useState("");
   const [newCardPriority, setNewCardPriority] = useState("normal");
+  const [showCreatePatient, setShowCreatePatient] = useState(false);
+  
+  // Column management
   const [addColumnOpen, setAddColumnOpen] = useState(false);
   const [newColumnName, setNewColumnName] = useState("");
   const [newColumnColor, setNewColumnColor] = useState("gray");
+  const [editingColumn, setEditingColumn] = useState<KanbanColumn | null>(null);
 
   // Selected card for dialog
   const [selectedCard, setSelectedCard] = useState<{
@@ -161,17 +177,39 @@ export default function KanbanBoard() {
     },
   });
 
+  // Move card mutation - sets manual_override to true
   const moveCardMutation = useMutation({
-    mutationFn: async ({ cardId, newColumn }: { cardId: string; newColumn: string }) => {
+    mutationFn: async ({ cardId, newColumn, newPosition }: { cardId: string; newColumn: string; newPosition?: number }) => {
+      const updates: { column_name: string; manual_override: boolean; position?: number } = {
+        column_name: newColumn,
+        manual_override: true, // Disable automatic date-based changes
+      };
+      if (newPosition !== undefined) {
+        updates.position = newPosition;
+      }
       const { error } = await supabase
         .from("kanban_cards")
-        .update({ column_name: newColumn })
+        .update(updates)
         .eq("id", cardId);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["kanban-cards", id] });
-      toast.success("Card moved successfully");
+      toast.success("Card moved (auto-sync disabled for this card)");
+    },
+  });
+
+  // Update card position within same column
+  const updateCardPositionMutation = useMutation({
+    mutationFn: async ({ cardId, newPosition }: { cardId: string; newPosition: number }) => {
+      const { error } = await supabase
+        .from("kanban_cards")
+        .update({ position: newPosition })
+        .eq("id", cardId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kanban-cards", id] });
     },
   });
 
@@ -203,6 +241,7 @@ export default function KanbanBoard() {
       setNewCardPatientId("");
       setNewCardSurgeryType("");
       setNewCardPriority("normal");
+      setShowCreatePatient(false);
       toast.success("Patient added to board");
     },
   });
@@ -232,19 +271,60 @@ export default function KanbanBoard() {
     },
   });
 
-  const handleDragStart = (cardId: string) => {
+  // Card drag handlers
+  const handleCardDragStart = (e: React.DragEvent, cardId: string) => {
+    e.dataTransfer.setData("cardId", cardId);
     setDraggedCard(cardId);
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleCardDragOver = (e: React.DragEvent) => {
     e.preventDefault();
   };
 
-  const handleDrop = (columnId: string) => {
+  const handleCardDrop = (columnId: string, targetPosition?: number) => {
     if (draggedCard) {
-      moveCardMutation.mutate({ cardId: draggedCard, newColumn: columnId });
+      const card = cards.find(c => c.id === draggedCard);
+      if (card && card.column_name !== columnId) {
+        moveCardMutation.mutate({ 
+          cardId: draggedCard, 
+          newColumn: columnId,
+          newPosition: targetPosition ?? cards.filter(c => c.column_name === columnId).length
+        });
+      } else if (card && targetPosition !== undefined) {
+        updateCardPositionMutation.mutate({ cardId: draggedCard, newPosition: targetPosition });
+      }
       setDraggedCard(null);
     }
+  };
+
+  // Column drag handlers
+  const handleColumnDragStart = (e: React.DragEvent, columnId: string) => {
+    e.dataTransfer.setData("columnId", columnId);
+    setDraggedColumn(columnId);
+  };
+
+  const handleColumnDragOver = (e: React.DragEvent, columnId: string) => {
+    e.preventDefault();
+    if (draggedColumn && draggedColumn !== columnId) {
+      setDragOverColumn(columnId);
+    }
+  };
+
+  const handleColumnDrop = (targetColumnId: string) => {
+    if (draggedColumn && draggedColumn !== targetColumnId) {
+      const columns = (board?.columns_config as unknown as KanbanColumn[]) || [];
+      const draggedIndex = columns.findIndex(c => c.id === draggedColumn);
+      const targetIndex = columns.findIndex(c => c.id === targetColumnId);
+      
+      if (draggedIndex !== -1 && targetIndex !== -1) {
+        const newColumns = [...columns];
+        const [removed] = newColumns.splice(draggedIndex, 1);
+        newColumns.splice(targetIndex, 0, removed);
+        updateColumnsMutation.mutate(newColumns);
+      }
+    }
+    setDraggedColumn(null);
+    setDragOverColumn(null);
   };
 
   const handleAddColumn = () => {
@@ -261,6 +341,20 @@ export default function KanbanBoard() {
     setNewColumnColor("gray");
   };
 
+  const handleEditColumn = () => {
+    if (!editingColumn || !newColumnName.trim()) return;
+    const columns = (board?.columns_config as unknown as KanbanColumn[]) || [];
+    const updated = columns.map(c => 
+      c.id === editingColumn.id 
+        ? { ...c, name: newColumnName, color: newColumnColor }
+        : c
+    );
+    updateColumnsMutation.mutate(updated);
+    setEditingColumn(null);
+    setNewColumnName("");
+    setNewColumnColor("gray");
+  };
+
   const handleDeleteColumn = (columnId: string) => {
     const columns = (board?.columns_config as unknown as KanbanColumn[]) || [];
     const filtered = columns.filter((c) => c.id !== columnId);
@@ -272,6 +366,7 @@ export default function KanbanBoard() {
     return (columnId: string) => {
       return cards
         .filter((card) => card.column_name === columnId)
+        .sort((a, b) => a.position - b.position)
         .filter((card) => {
           // Search filter
           if (filters.search) {
@@ -293,7 +388,6 @@ export default function KanbanBoard() {
             if (filters.dateFrom && isBefore(cardDate, filters.dateFrom)) return false;
             if (filters.dateTo && isAfter(cardDate, filters.dateTo)) return false;
           } else if (filters.dateFrom || filters.dateTo) {
-            // If date filter is set but card has no date, exclude it
             return false;
           }
 
@@ -413,14 +507,31 @@ export default function KanbanBoard() {
             return (
               <div
                 key={column.id}
-                className="flex-shrink-0 w-72"
-                onDragOver={handleDragOver}
-                onDrop={() => handleDrop(column.id)}
+                className={cn(
+                  "flex-shrink-0 w-72 transition-all",
+                  dragOverColumn === column.id && "ring-2 ring-primary",
+                  draggedColumn === column.id && "opacity-50"
+                )}
+                draggable
+                onDragStart={(e) => handleColumnDragStart(e, column.id)}
+                onDragOver={(e) => handleColumnDragOver(e, column.id)}
+                onDrop={() => {
+                  if (draggedColumn) {
+                    handleColumnDrop(column.id);
+                  } else {
+                    handleCardDrop(column.id);
+                  }
+                }}
+                onDragEnd={() => {
+                  setDraggedColumn(null);
+                  setDragOverColumn(null);
+                }}
               >
                 {/* Column Header */}
                 <div className={cn("rounded-t-lg px-3 py-2", colors.bg)}>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 cursor-grab">
+                      <GripVertical className="h-4 w-4 text-muted-foreground" />
                       <div className={cn("w-2 h-2 rounded-full", colors.dot)} />
                       <Badge className={cn("text-xs font-medium uppercase", colors.badge)}>
                         {column.name}
@@ -437,6 +548,15 @@ export default function KanbanBoard() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => {
+                            setEditingColumn(column);
+                            setNewColumnName(column.name);
+                            setNewColumnColor(column.color);
+                          }}>
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit Column
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-destructive"
                             onClick={() => handleDeleteColumn(column.id)}
@@ -459,12 +579,34 @@ export default function KanbanBoard() {
                 </div>
 
                 {/* Cards Container */}
-                <div className={cn("min-h-[400px] rounded-b-lg p-2 space-y-2", colors.bg)}>
-                  {columnCards.map((card) => (
+                <div 
+                  className={cn("min-h-[400px] rounded-b-lg p-2 space-y-2", colors.bg)}
+                  onDragOver={handleCardDragOver}
+                  onDrop={(e) => {
+                    e.stopPropagation();
+                    if (!draggedColumn) {
+                      handleCardDrop(column.id);
+                    }
+                  }}
+                >
+                  {columnCards.map((card, index) => (
                     <div
                       key={card.id}
                       draggable
-                      onDragStart={() => handleDragStart(card.id)}
+                      onDragStart={(e) => {
+                        e.stopPropagation();
+                        handleCardDragStart(e, card.id);
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onDrop={(e) => {
+                        e.stopPropagation();
+                        if (draggedCard && draggedCard !== card.id) {
+                          handleCardDrop(column.id, index);
+                        }
+                      }}
                       onClick={() => card.patient && setSelectedCard({
                         cardId: card.id,
                         patientId: card.patient.id,
@@ -473,7 +615,8 @@ export default function KanbanBoard() {
                       className={cn(
                         "bg-card rounded-lg border shadow-sm p-3 cursor-pointer",
                         "hover:shadow-md transition-shadow",
-                        draggedCard === card.id && "opacity-50"
+                        draggedCard === card.id && "opacity-50",
+                        card.manual_override && "border-l-4 border-l-amber-400"
                       )}
                     >
                       {/* Card Title */}
@@ -565,64 +708,133 @@ export default function KanbanBoard() {
       </div>
 
       {/* Add Card Dialog */}
-      <Dialog open={!!addCardColumn} onOpenChange={(open) => !open && setAddCardColumn(null)}>
+      <Dialog open={!!addCardColumn} onOpenChange={(open) => {
+        if (!open) {
+          setAddCardColumn(null);
+          setShowCreatePatient(false);
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Patient to Board</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-4">
+            {showCreatePatient ? (
+              <CreatePatientInKanban
+                boardId={id!}
+                columnId={addCardColumn!}
+                position={cards.filter(c => c.column_name === addCardColumn).length}
+                onSuccess={() => {
+                  setAddCardColumn(null);
+                  setShowCreatePatient(false);
+                }}
+                onCancel={() => setShowCreatePatient(false)}
+              />
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label>Patient</Label>
+                  <Select value={newCardPatientId} onValueChange={setNewCardPatientId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a patient" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {patients.map((patient) => (
+                        <SelectItem key={patient.id} value={patient.id}>
+                          {patient.name} {patient.medical_record_number && `(${patient.medical_record_number})`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Surgery Type (optional)</Label>
+                  <Input
+                    value={newCardSurgeryType}
+                    onChange={(e) => setNewCardSurgeryType(e.target.value)}
+                    placeholder="e.g., Appendectomy"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Priority</Label>
+                  <Select value={newCardPriority} onValueChange={setNewCardPriority}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="urgent">Urgent</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="normal">Normal</SelectItem>
+                      <SelectItem value="low">Low</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() =>
+                      addCardColumn &&
+                      newCardPatientId &&
+                      addCardMutation.mutate({
+                        columnId: addCardColumn,
+                        patientId: newCardPatientId,
+                        surgeryType: newCardSurgeryType,
+                        priority: newCardPriority,
+                      })
+                    }
+                    disabled={!newCardPatientId}
+                    className="flex-1"
+                  >
+                    Add Patient
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowCreatePatient(true)}
+                  >
+                    <UserPlus className="h-4 w-4 mr-1" />
+                    New Patient
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Column Dialog */}
+      <Dialog open={!!editingColumn} onOpenChange={(open) => !open && setEditingColumn(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Column</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
             <div className="space-y-2">
-              <Label>Patient</Label>
-              <Select value={newCardPatientId} onValueChange={setNewCardPatientId}>
+              <Label>Column Name</Label>
+              <Input
+                value={newColumnName}
+                onChange={(e) => setNewColumnName(e.target.value)}
+                placeholder="e.g., In Progress"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Color</Label>
+              <Select value={newColumnColor} onValueChange={setNewColumnColor}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a patient" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {patients.map((patient) => (
-                    <SelectItem key={patient.id} value={patient.id}>
-                      {patient.name} {patient.medical_record_number && `(${patient.medical_record_number})`}
+                  {Object.keys(columnColors).map((color) => (
+                    <SelectItem key={color} value={color}>
+                      <div className="flex items-center gap-2">
+                        <div className={cn("w-3 h-3 rounded-full", columnColors[color].dot)} />
+                        <span className="capitalize">{color}</span>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Surgery Type (optional)</Label>
-              <Input
-                value={newCardSurgeryType}
-                onChange={(e) => setNewCardSurgeryType(e.target.value)}
-                placeholder="e.g., Appendectomy"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Priority</Label>
-              <Select value={newCardPriority} onValueChange={setNewCardPriority}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="urgent">Urgent</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="normal">Normal</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button
-              onClick={() =>
-                addCardColumn &&
-                newCardPatientId &&
-                addCardMutation.mutate({
-                  columnId: addCardColumn,
-                  patientId: newCardPatientId,
-                  surgeryType: newCardSurgeryType,
-                  priority: newCardPriority,
-                })
-              }
-              disabled={!newCardPatientId}
-              className="w-full"
-            >
-              Add Patient
+            <Button onClick={handleEditColumn} className="w-full">
+              Save Changes
             </Button>
           </div>
         </DialogContent>

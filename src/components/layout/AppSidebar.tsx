@@ -8,13 +8,14 @@
  * Features:
  * - Dashboard navigation
  * - Dynamic Kanban board links based on available boards
+ * - Kanban board CRUD (create, edit, delete)
  * - Calendar and List view navigation
  * - Hospital management (add new hospitals)
  * - Filter controls for date, urgency, hospital, and tags
  */
 
 import { useState } from "react";
-import { useLocation, Link } from "react-router-dom";
+import { useLocation, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -27,6 +28,9 @@ import {
   ChevronDown,
   Settings,
   Scissors,
+  MoreHorizontal,
+  Edit,
+  Trash2,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -54,15 +58,33 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ManageBoardDialog } from "@/components/kanban/ManageBoardDialog";
 
 export function AppSidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const queryClient = useQueryClient();
@@ -76,6 +98,17 @@ export function AppSidebar() {
   const [boardsOpen, setBoardsOpen] = useState(true);
   const [hospitalsOpen, setHospitalsOpen] = useState(false);
 
+  // State for board CRUD
+  const [createBoardOpen, setCreateBoardOpen] = useState(false);
+  const [editingBoard, setEditingBoard] = useState<{
+    id: string;
+    name: string;
+    description: string | null;
+    hospital_id: string | null;
+    service: string | null;
+  } | null>(null);
+  const [deletingBoardId, setDeletingBoardId] = useState<string | null>(null);
+
   /**
    * Fetch all kanban boards for navigation
    */
@@ -84,10 +117,35 @@ export function AppSidebar() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("kanban_boards")
-        .select("id, name, hospital:hospitals(name)")
+        .select("id, name, description, hospital_id, service, hospital:hospitals(name)")
         .order("name");
       if (error) throw error;
       return data;
+    },
+  });
+
+  /**
+   * Mutation to delete a board
+   */
+  const deleteBoardMutation = useMutation({
+    mutationFn: async (boardId: string) => {
+      // Delete all cards first
+      await supabase.from("kanban_cards").delete().eq("board_id", boardId);
+      // Then delete the board
+      const { error } = await supabase.from("kanban_boards").delete().eq("id", boardId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kanban-boards-nav"] });
+      toast.success("Board deleted");
+      setDeletingBoardId(null);
+      // Navigate to dashboard if currently on deleted board
+      if (location.pathname.includes(deletingBoardId!)) {
+        navigate("/");
+      }
+    },
+    onError: (error) => {
+      toast.error("Failed to delete board: " + error.message);
     },
   });
 
@@ -237,27 +295,67 @@ export function AppSidebar() {
                   ) : (
                     boards.map((board) => (
                       <SidebarMenuItem key={board.id}>
-                        <SidebarMenuButton 
-                          asChild 
-                          isActive={location.pathname === `/kanban/${board.id}`}
-                        >
-                          <Link to={`/kanban/${board.id}`}>
-                            <div className="w-2 h-2 rounded-full bg-primary" />
-                            {!collapsed && (
-                              <div className="flex flex-col">
-                                <span className="text-sm">{board.name}</span>
-                                {board.hospital && (
-                                  <span className="text-xs text-muted-foreground">
-                                    {(board.hospital as { name: string }).name}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </Link>
-                        </SidebarMenuButton>
+                        <div className="flex items-center w-full group">
+                          <SidebarMenuButton 
+                            asChild 
+                            isActive={location.pathname === `/kanban/${board.id}`}
+                            className="flex-1"
+                          >
+                            <Link to={`/kanban/${board.id}`}>
+                              <div className="w-2 h-2 rounded-full bg-primary" />
+                              {!collapsed && (
+                                <div className="flex flex-col flex-1">
+                                  <span className="text-sm">{board.name}</span>
+                                  {board.hospital && (
+                                    <span className="text-xs text-muted-foreground">
+                                      {(board.hospital as { name: string }).name}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </Link>
+                          </SidebarMenuButton>
+                          {!collapsed && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <MoreHorizontal className="h-3 w-3" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => setEditingBoard(board)}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Edit Board
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => setDeletingBoardId(board.id)}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete Board
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </div>
                       </SidebarMenuItem>
                     ))
                   )}
+                  {/* Create Board Button */}
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      className="text-primary hover:text-primary"
+                      onClick={() => setCreateBoardOpen(true)}
+                    >
+                      <Plus className="h-4 w-4" />
+                      {!collapsed && <span>Create Board</span>}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroupContent>
             </CollapsibleContent>
@@ -363,6 +461,41 @@ export function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+
+      {/* Create Board Dialog */}
+      <ManageBoardDialog
+        open={createBoardOpen}
+        onOpenChange={setCreateBoardOpen}
+        board={null}
+      />
+
+      {/* Edit Board Dialog */}
+      <ManageBoardDialog
+        open={!!editingBoard}
+        onOpenChange={(open) => !open && setEditingBoard(null)}
+        board={editingBoard}
+      />
+
+      {/* Delete Board Confirmation */}
+      <AlertDialog open={!!deletingBoardId} onOpenChange={(open) => !open && setDeletingBoardId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Board?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this kanban board and all its cards. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingBoardId && deleteBoardMutation.mutate(deletingBoardId)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sidebar>
   );
 }

@@ -81,9 +81,26 @@ export function FileUpload({ patientId, episodeId, surgeryId, trigger }: FileUpl
     mutationFn: async () => {
       if (!selectedFile) throw new Error("No file selected");
 
-      // For now, we'll create a placeholder URL since storage buckets need to be set up
-      // In production, this would upload to Supabase Storage
-      const fileUrl = `placeholder://${selectedFile.name}`;
+      // Generate unique file path
+      const fileExt = selectedFile.name.split('.').pop();
+      const fileName = `${patientId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+      // Upload to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('patient-attachments')
+        .upload(fileName, selectedFile, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('patient-attachments')
+        .getPublicUrl(fileName);
+
+      const fileUrl = urlData.publicUrl;
       
       // Create attachment record
       const { error } = await supabase.from("attachments").insert({
@@ -102,6 +119,7 @@ export function FileUpload({ patientId, episodeId, surgeryId, trigger }: FileUpl
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patient-attachments", patientId] });
+      queryClient.invalidateQueries({ queryKey: ["patient-card-attachments", patientId] });
       toast.success("File uploaded successfully");
       handleClose();
     },

@@ -4,7 +4,7 @@
  * This hook:
  * 1. Checks for scheduled surgeries where the date has passed
  * 2. Updates them to "pending" status
- * 3. Updates corresponding kanban cards
+ * 3. Updates corresponding kanban cards (only if manual_override is false)
  */
 
 import { useEffect } from "react";
@@ -25,6 +25,7 @@ export const surgeryStatusToKanbanColumn: Record<string, string> = {
 /**
  * Hook to automatically update overdue surgeries to pending status
  * Runs on mount and updates both surgeries and kanban cards
+ * Skips kanban cards that have manual_override = true
  */
 export function useSurgeryStatusSync() {
   const queryClient = useQueryClient();
@@ -53,14 +54,15 @@ export function useSurgeryStatusSync() {
         return;
       }
 
-      // Update kanban cards for affected patients
+      // Update kanban cards for affected patients (only if manual_override is false)
       const patientIds = [...new Set(overdueSurgeries.map(s => s.patient_id))];
       
       await supabase
         .from("kanban_cards")
         .update({ column_name: "pending" })
         .in("patient_id", patientIds)
-        .eq("column_name", "scheduled");
+        .eq("column_name", "scheduled")
+        .eq("manual_override", false);
 
       // Invalidate queries to refresh UI
       queryClient.invalidateQueries({ queryKey: ["surgeries"] });
