@@ -349,6 +349,7 @@ export type Database = {
           column_name: string
           created_at: string
           id: string
+          manual_override: boolean
           notes: string | null
           patient_id: string
           position: number
@@ -362,6 +363,7 @@ export type Database = {
           column_name?: string
           created_at?: string
           id?: string
+          manual_override?: boolean
           notes?: string | null
           patient_id: string
           position?: number
@@ -375,6 +377,7 @@ export type Database = {
           column_name?: string
           created_at?: string
           id?: string
+          manual_override?: boolean
           notes?: string | null
           patient_id?: string
           position?: number
