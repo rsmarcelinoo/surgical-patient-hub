@@ -65,6 +65,8 @@ import {
   ExternalLink,
   Save,
   Users,
+  Pencil,
+  Pin,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -73,6 +75,8 @@ import { AddSurgeryDialog } from "@/components/patient/AddSurgeryDialog";
 import { FileUpload } from "@/components/patient/FileUpload";
 import { EditPatientDialog } from "@/components/patient/EditPatientDialog";
 import { EditSurgeryDialog } from "@/components/patient/EditSurgeryDialog";
+import { DrawingDialog } from "@/components/drawing/DrawingDialog";
+import { CalendarExport } from "@/components/calendar/CalendarExport";
 
 interface PatientCardDialogProps {
   open: boolean;
@@ -176,14 +180,15 @@ export function PatientCardDialog({
     enabled: open && !!patientId,
   });
 
-  // Fetch comments
+  // Fetch comments - using same query key as AddCommentForm
   const { data: comments = [] } = useQuery({
-    queryKey: ["patient-card-comments", patientId],
+    queryKey: ["patient-comments", patientId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("comments")
         .select("*")
         .eq("patient_id", patientId)
+        .order("is_pinned", { ascending: false })
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -297,7 +302,7 @@ export function PatientCardDialog({
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["patient-card-comments", patientId] });
+      queryClient.invalidateQueries({ queryKey: ["patient-comments", patientId] });
     },
   });
 
@@ -478,6 +483,16 @@ export function PatientCardDialog({
                     </Button>
                   }
                 />
+
+                <DrawingDialog
+                  patientId={patientId}
+                  trigger={
+                    <Button variant="outline" size="sm">
+                      <Pencil className="h-4 w-4 mr-1" />
+                      Draw
+                    </Button>
+                  }
+                />
               </div>
 
               {/* Scheduled Date */}
@@ -614,30 +629,48 @@ export function PatientCardDialog({
                               </div>
                             )}
                           </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 opacity-0 group-hover:opacity-100"
-                              >
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setEditSurgeryId(surgery.id)}>
-                                <Edit className="h-4 w-4 mr-2" />
-                                Edit Surgery
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-destructive"
-                                onClick={() => setDeleteSurgeryId(surgery.id)}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete Surgery
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <div className="flex items-center gap-1">
+                            {surgery.scheduled_date && (
+                              <CalendarExport
+                                event={{
+                                  title: `Surgery: ${surgery.procedure_name} - ${patient?.name}`,
+                                  description: `Procedure: ${surgery.procedure_name}\nPatient: ${patient?.name}\nSurgeon: ${surgery.main_surgeon || surgery.surgeon || "TBD"}\n${surgery.notes || ""}`,
+                                  location: surgery.hospital ? (surgery.hospital as { name: string }).name : undefined,
+                                  startDate: new Date(surgery.scheduled_date),
+                                  durationMinutes: surgery.duration_minutes || 60,
+                                }}
+                                trigger={
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100">
+                                    <Calendar className="h-4 w-4" />
+                                  </Button>
+                                }
+                              />
+                            )}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => setEditSurgeryId(surgery.id)}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Edit Surgery
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => setDeleteSurgeryId(surgery.id)}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete Surgery
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </div>
                       </div>
                     ))}
