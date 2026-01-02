@@ -1,10 +1,13 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, User, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Calendar, Clock, User, Users, Edit } from "lucide-react";
 import { format } from "date-fns";
 import { AddSurgeryDialog } from "./AddSurgeryDialog";
+import { EditSurgeryDialog } from "./EditSurgeryDialog";
 
 interface PatientSurgeriesProps {
   patientId: string;
@@ -18,6 +21,7 @@ const statusColors: Record<string, string> = {
 };
 
 export function PatientSurgeries({ patientId }: PatientSurgeriesProps) {
+  const [editSurgeryId, setEditSurgeryId] = useState<string | null>(null);
   const { data: surgeries = [], isLoading } = useQuery({
     queryKey: ["patient-surgeries", patientId],
     queryFn: async () => {
@@ -76,9 +80,14 @@ export function PatientSurgeries({ patientId }: PatientSurgeriesProps) {
                   {surgery.status}
                 </Badge>
               </div>
-              {surgery.operating_room && (
-                <Badge variant="outline">Room {surgery.operating_room}</Badge>
-              )}
+              <div className="flex items-center gap-2">
+                {surgery.operating_room && (
+                  <Badge variant="outline">Room {surgery.operating_room}</Badge>
+                )}
+                <Button variant="ghost" size="sm" onClick={() => setEditSurgeryId(surgery.id)}>
+                  <Edit className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -127,6 +136,16 @@ export function PatientSurgeries({ patientId }: PatientSurgeriesProps) {
         </Card>
       ))}
       </div>
+
+      {/* Edit Surgery Dialog */}
+      {editSurgeryId && (
+        <EditSurgeryDialog
+          open={!!editSurgeryId}
+          onOpenChange={(open) => !open && setEditSurgeryId(null)}
+          surgeryId={editSurgeryId}
+          patientId={patientId}
+        />
+      )}
     </div>
   );
 }

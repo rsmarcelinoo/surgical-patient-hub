@@ -86,7 +86,7 @@ export function ManageBoardDialog({ open, onOpenChange, board }: ManageBoardDial
       const { error } = await supabase.from("kanban_boards").insert({
         name,
         description: description || null,
-        hospital_id: hospitalId || null,
+        hospital_id: hospitalId && hospitalId !== "none" ? hospitalId : null,
         service: service || null,
       });
       if (error) throw error;
@@ -109,7 +109,7 @@ export function ManageBoardDialog({ open, onOpenChange, board }: ManageBoardDial
         .update({
           name,
           description: description || null,
-          hospital_id: hospitalId || null,
+          hospital_id: hospitalId && hospitalId !== "none" ? hospitalId : null,
           service: service || null,
         })
         .eq("id", board!.id);
@@ -164,7 +164,7 @@ export function ManageBoardDialog({ open, onOpenChange, board }: ManageBoardDial
                 <SelectValue placeholder="Select hospital" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">No hospital</SelectItem>
+                <SelectItem value="none">No hospital</SelectItem>
                 {hospitals.map((h) => (
                   <SelectItem key={h.id} value={h.id}>
                     {h.name}
