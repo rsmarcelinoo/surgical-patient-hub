@@ -4,6 +4,7 @@
  * Allows users to configure application preferences including:
  * - Language (English/Portuguese)
  * - Theme (Light/Dark mode)
+ * - Import Kanban boards from JSON
  */
 
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -12,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useSettings } from "@/contexts/SettingsContext";
 import { Globe, Moon, Sun } from "lucide-react";
+import { ImportKanban } from "@/components/settings/ImportKanban";
 
 export default function Settings() {
   const { language, setLanguage, theme, setTheme, t } = useSettings();
@@ -89,6 +91,9 @@ export default function Settings() {
             </RadioGroup>
           </CardContent>
         </Card>
+
+        {/* Import Kanban */}
+        <ImportKanban />
       </div>
     </AppLayout>
   );
