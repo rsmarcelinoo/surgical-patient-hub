@@ -43,9 +43,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { format, differenceInYears, isAfter, isBefore, parseISO } from "date-fns";
-import { Search, Filter, X, Calendar as CalendarIcon, ChevronUp, ChevronDown, ExternalLink } from "lucide-react";
+import { Search, Filter, X, Calendar as CalendarIcon, ChevronUp, ChevronDown, ExternalLink, Edit } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AddPatientDialog } from "@/components/patient/AddPatientDialog";
+import { EditPatientDialog } from "@/components/patient/EditPatientDialog";
 
 /** Interface for patient data with related info */
 interface PatientWithDetails {
@@ -56,6 +57,8 @@ interface PatientWithDetails {
   gender: string | null;
   contact_phone: string | null;
   contact_email: string | null;
+  address: string | null;
+  notes: string | null;
   created_at: string;
 }
 
@@ -97,6 +100,9 @@ export default function ListView() {
   // Sort state
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+  // Edit patient dialog state
+  const [editPatient, setEditPatient] = useState<PatientWithDetails | null>(null);
 
   // Initialize filters from URL params
   useEffect(() => {
@@ -500,16 +506,28 @@ export default function ListView() {
                           {format(new Date(patient.created_at), "MMM d, yyyy")}
                         </TableCell>
                         <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/patient/${patient.id}`);
-                            }}
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditPatient(patient);
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/patient/${patient.id}`);
+                              }}
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -519,6 +537,15 @@ export default function ListView() {
             </Table>
           </CardContent>
         </Card>
+
+        {/* Edit Patient Dialog */}
+        {editPatient && (
+          <EditPatientDialog
+            open={!!editPatient}
+            onOpenChange={(open) => !open && setEditPatient(null)}
+            patient={editPatient}
+          />
+        )}
       </div>
     </AppLayout>
   );

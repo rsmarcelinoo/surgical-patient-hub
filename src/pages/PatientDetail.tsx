@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, User, Calendar, Phone, Mail, MapPin, FileText, Stethoscope, MessageSquare, Paperclip, Activity, Plus } from "lucide-react";
+import { ArrowLeft, User, Calendar, Phone, Mail, MapPin, FileText, Stethoscope, MessageSquare, Paperclip, Activity, Plus, Edit } from "lucide-react";
 import { format } from "date-fns";
 import { PatientEpisodes } from "@/components/patient/PatientEpisodes";
 import { PatientSurgeries } from "@/components/patient/PatientSurgeries";
@@ -16,10 +17,12 @@ import { PatientAttachments } from "@/components/patient/PatientAttachments";
 import { AddEpisodeDialog } from "@/components/patient/AddEpisodeDialog";
 import { AddConsultationDialog } from "@/components/patient/AddConsultationDialog";
 import { AddSurgeryDialog } from "@/components/patient/AddSurgeryDialog";
+import { EditPatientDialog } from "@/components/patient/EditPatientDialog";
 
 export default function PatientDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [editPatientOpen, setEditPatientOpen] = useState(false);
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", id],
@@ -94,6 +97,10 @@ export default function PatientDetail() {
                   </div>
                 </div>
               </div>
+              <Button variant="outline" size="sm" onClick={() => setEditPatientOpen(true)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit Patient
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
@@ -186,6 +193,13 @@ export default function PatientDetail() {
             <PatientAttachments patientId={patient.id} />
           </TabsContent>
         </Tabs>
+
+        {/* Edit Patient Dialog */}
+        <EditPatientDialog
+          open={editPatientOpen}
+          onOpenChange={setEditPatientOpen}
+          patient={patient}
+        />
       </div>
     </AppLayout>
   );

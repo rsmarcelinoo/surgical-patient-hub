@@ -31,8 +31,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { format } from "date-fns";
-import { Search, X, ExternalLink } from "lucide-react";
+import { Search, X, ExternalLink, Edit } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { EditSurgeryDialog } from "@/components/patient/EditSurgeryDialog";
 
 /** Interface for surgery data with patient info */
 interface SurgeryWithPatient {
@@ -77,6 +78,10 @@ export default function SurgeriesListView() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>(initialStatus);
   const [hospitalFilter, setHospitalFilter] = useState<string>("all");
+
+  // Edit surgery dialog state
+  const [editSurgeryId, setEditSurgeryId] = useState<string | null>(null);
+  const [editSurgeryPatientId, setEditSurgeryPatientId] = useState<string | null>(null);
 
   // Update filter when URL params change
   useEffect(() => {
@@ -291,16 +296,29 @@ export default function SurgeriesListView() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            surgery.patients?.id && navigate(`/patient/${surgery.patients.id}`);
-                          }}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditSurgeryId(surgery.id);
+                              setEditSurgeryPatientId(surgery.patient_id);
+                            }}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              surgery.patients?.id && navigate(`/patient/${surgery.patients.id}`);
+                            }}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -309,6 +327,21 @@ export default function SurgeriesListView() {
             </Table>
           </CardContent>
         </Card>
+
+        {/* Edit Surgery Dialog */}
+        {editSurgeryId && editSurgeryPatientId && (
+          <EditSurgeryDialog
+            open={!!editSurgeryId}
+            onOpenChange={(open) => {
+              if (!open) {
+                setEditSurgeryId(null);
+                setEditSurgeryPatientId(null);
+              }
+            }}
+            surgeryId={editSurgeryId}
+            patientId={editSurgeryPatientId}
+          />
+        )}
       </div>
     </AppLayout>
   );
